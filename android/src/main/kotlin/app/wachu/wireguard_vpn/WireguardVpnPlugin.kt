@@ -41,24 +41,27 @@ class WireguardVpnPlugin: FlutterPlugin, MethodCallHandler ,ActivityAware,Plugin
     ///
     /// This local reference serves to register the plugin with the Flutter Engine and unregister it
     /// when the Flutter Engine is detached from the Activity
-    private lateinit var channel : MethodChannel
-    private val permissionRequestCode = 10014
+    private lateinit var channel: MethodChannel
     private val channelName = "wachu985/wireguard-flutter"
-    private val futureBackend = CompletableDeferred<Backend>()
-    private val scope = CoroutineScope(Job() + Dispatchers.Main.immediate)
-    private var backend: Backend? = null
-    private lateinit var rootShell: RootShell
-    private lateinit var toolsInstaller: ToolsInstaller
-    private var havePermission = false
-    private lateinit var context:Context 
-    private var activity:Activity? = null
-
-    // Have to keep tunnels, because WireGuard requires to use the _same_
-    // instance of a tunnel every time you change the state.
-    private var tunnels = HashMap<String, Tunnel>()
+    private val permissionRequestCode = 10014
+    private var activity: Activity? = null
 
     companion object {
-    const val TAG = "MainActivity"
+        const val TAG = "FlutterWireguardPlugin"
+
+        private val futureBackend = CompletableDeferred<Backend>()
+        private var backend: Backend? = null
+        private var isFirstRun = true
+
+        private lateinit var context:Context
+        private lateinit var rootShell: RootShell
+        private lateinit var toolsInstaller: ToolsInstaller
+
+        // WireGuard requires using the same instance of a tunnel every time you change the state.
+        private var tunnels = HashMap<String, Tunnel>()
+
+        private var havePermission = false
+        private val scope = CoroutineScope(Job() + Dispatchers.Main.immediate)
     }
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean{
         //super.onActivityResult(requestCode, resultCode, data)
@@ -91,24 +94,29 @@ class WireguardVpnPlugin: FlutterPlugin, MethodCallHandler ,ActivityAware,Plugin
     // Clean up references.
         this.activity = null;
     }
-  
-    
+
+
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, channelName)
-        context = flutterPluginBinding.applicationContext
-        rootShell = RootShell(context)
-        toolsInstaller = ToolsInstaller(context, rootShell)
-    
-        scope.launch(Dispatchers.IO) {
-            try {
-                backend = createBackend()
-                Log.e(TAG, "Entre 1")
-                futureBackend.complete(backend!!)
-                checkPermission()
-            } catch (e: Throwable) {
-                Log.e(TAG, Log.getStackTraceString(e))
+
+        if (isFirstRun) {
+            isFirstRun = false;
+            context = flutterPluginBinding.applicationContext
+            rootShell = RootShell(context)
+            toolsInstaller = ToolsInstaller(context, rootShell)
+
+            scope.launch(Dispatchers.IO) {
+                try {
+                    backend = createBackend()
+                    Log.e(TAG, "Entre 1")
+                    futureBackend.complete(backend!!)
+                    checkPermission()
+                } catch (e: Throwable) {
+                    Log.e(TAG, Log.getStackTraceString(e))
+                }
             }
         }
+
         channel.setMethodCallHandler(this)
     }
 
